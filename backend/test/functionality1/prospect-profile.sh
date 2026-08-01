@@ -93,6 +93,7 @@ expected=$(jq -r . << EOF
   "seconds_since_sign_up": null,
   "show_my_looking_for": "Yes",
   "smoking": null,
+  "spotify_artists": [],
   "star_sign": null,
   "theme": {
     "background_color": "#ffffff",
@@ -212,6 +213,7 @@ expected=$(jq -r . << EOF
   "seconds_since_sign_up": null,
   "show_my_looking_for": "Yes",
   "smoking": null,
+  "spotify_artists": [],
   "star_sign": null,
   "theme": {
     "background_color": "#ffffff",

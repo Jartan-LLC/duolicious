@@ -10,41 +10,43 @@
 -- carries the same change to already-created databases.
 
 
--- /export-data and /tripcode joined the static pages copied from
--- duolicious.app to the web frontend, where they're served at the top
--- level -- the same namespace as profile URLs (/<url_slug>). The slugs
--- are now in urlslug's RESERVED_SLUGS so they can't be minted again, but
--- anyone who already holds one would have their profile shadowed by the
--- static page, so they're moved to a numerically-suffixed slug, mirroring
--- what minting would have produced had the name been reserved at sign-up.
--- Idempotent because a rename leaves no rows matching the WHERE clause.
--- No init-api.sql counterpart: this fixes data, not schema.
-UPDATE person p
-SET url_slug = (
-    SELECT p.url_slug || suffix
-    FROM generate_series(1, 100000) AS suffix
-    WHERE NOT EXISTS (
-        SELECT 1 FROM person q WHERE q.url_slug = p.url_slug || suffix
-    )
-    AND NOT EXISTS (
-        SELECT 1 FROM onboardee o WHERE o.url_slug = p.url_slug || suffix
-    )
-    ORDER BY suffix
-    LIMIT 1
-)
-WHERE p.url_slug IN ('export-data', 'tripcode');
+CREATE TABLE IF NOT EXISTS spotify_oauth_state (
+    state TEXT PRIMARY KEY,
+    person_id INT NOT NULL REFERENCES person(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    expires_at TIMESTAMP NOT NULL DEFAULT (NOW() + INTERVAL '10 minutes')
+);
 
-UPDATE onboardee ob
-SET url_slug = (
-    SELECT ob.url_slug || suffix
-    FROM generate_series(1, 100000) AS suffix
-    WHERE NOT EXISTS (
-        SELECT 1 FROM person q WHERE q.url_slug = ob.url_slug || suffix
-    )
-    AND NOT EXISTS (
-        SELECT 1 FROM onboardee o WHERE o.url_slug = ob.url_slug || suffix
-    )
-    ORDER BY suffix
-    LIMIT 1
-)
-WHERE ob.url_slug IN ('export-data', 'tripcode');
+CREATE TABLE IF NOT EXISTS person_spotify (
+    person_id INT PRIMARY KEY REFERENCES person(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    access_token TEXT NOT NULL,
+    access_token_expires_at TIMESTAMP NOT NULL,
+    refresh_token TEXT NOT NULL,
+    refreshed_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    artists_synced_at TIMESTAMP
+);
+
+-- For databases that booted an earlier revision of this branch, where
+-- person_spotify existed without the column.
+ALTER TABLE person_spotify ADD COLUMN IF NOT EXISTS artists_synced_at TIMESTAMP;
+
+CREATE TABLE IF NOT EXISTS spotify_artist (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    image_url_small TEXT,
+    image_url_large TEXT,
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS person_spotify_artist (
+    person_id INT NOT NULL REFERENCES person_spotify(person_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    spotify_artist_id TEXT NOT NULL REFERENCES spotify_artist(id) ON DELETE CASCADE,
+    position SMALLINT NOT NULL,
+
+    PRIMARY KEY (person_id, spotify_artist_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx__person_spotify_artist__spotify_artist_id
+    ON person_spotify_artist(spotify_artist_id);
+
+CREATE INDEX IF NOT EXISTS idx__person_spotify__refreshed_at
+    ON person_spotify(refreshed_at);

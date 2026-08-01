@@ -636,6 +636,46 @@ CREATE TABLE IF NOT EXISTS club_seo (
     generated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS spotify_oauth_state (
+    state TEXT PRIMARY KEY,
+    person_id INT NOT NULL REFERENCES person(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    expires_at TIMESTAMP NOT NULL DEFAULT (NOW() + INTERVAL '10 minutes')
+);
+
+CREATE TABLE IF NOT EXISTS person_spotify (
+    person_id INT PRIMARY KEY REFERENCES person(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    access_token TEXT NOT NULL,
+    access_token_expires_at TIMESTAMP NOT NULL,
+    refresh_token TEXT NOT NULL,
+    -- Last refresh *attempt*; drives the cron's retry backoff.
+    refreshed_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    -- Last time the artist list was successfully stored; NULL until the
+    -- first successful fetch. Drives the cron's staleness check.
+    artists_synced_at TIMESTAMP
+);
+
+-- Shared catalog like `club`; upserted on every fetch so names and artwork
+-- stay fresh. `id` is Spotify's artist ID, which also serves as the
+-- open.spotify.com/artist/{id} link required for attribution.
+CREATE TABLE IF NOT EXISTS spotify_artist (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    image_url_small TEXT,
+    image_url_large TEXT,
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- References person_spotify rather than person so artist rows can only exist
+-- while a connection does: disconnecting (deleting the person_spotify row)
+-- cascades here, and account deletion still cascades transitively.
+CREATE TABLE IF NOT EXISTS person_spotify_artist (
+    person_id INT NOT NULL REFERENCES person_spotify(person_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    spotify_artist_id TEXT NOT NULL REFERENCES spotify_artist(id) ON DELETE CASCADE,
+    position SMALLINT NOT NULL,
+
+    PRIMARY KEY (person_id, spotify_artist_id)
+);
+
 CREATE TABLE IF NOT EXISTS deleted_photo_admin_token (
     token UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     photo_uuid TEXT NOT NULL,
@@ -854,6 +894,11 @@ CREATE INDEX IF NOT EXISTS idx__question__question ON question USING GIST(questi
 
 CREATE INDEX IF NOT EXISTS idx__club__name ON club USING GIST(name gist_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx__club__count_members__name ON club(count_members, name);
+
+CREATE INDEX IF NOT EXISTS idx__person_spotify_artist__spotify_artist_id
+ON person_spotify_artist(spotify_artist_id);
+CREATE INDEX IF NOT EXISTS idx__person_spotify__refreshed_at
+ON person_spotify(refreshed_at);
 
 CREATE INDEX IF NOT EXISTS idx__banned_person__ip_address ON banned_person(ip_address);
 CREATE INDEX IF NOT EXISTS idx__banned_person__expires_at ON banned_person(expires_at);
