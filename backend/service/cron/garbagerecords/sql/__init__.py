@@ -70,31 +70,6 @@ WITH q1 AS (
         expires_at < NOW()
     RETURNING
         1
-), q12 AS (
-    -- Spotify catalog rows nothing references anymore. SKIP LOCKED defers
-    -- rows a concurrent connect/refresh is about to reference: store.py
-    -- upserts (and so row-locks) every artist before linking people to it.
-    DELETE FROM
-        spotify_artist
-    WHERE
-        id IN (
-            SELECT
-                id
-            FROM
-                spotify_artist
-            WHERE
-                NOT EXISTS (
-                    SELECT
-                        1
-                    FROM
-                        person_spotify_artist
-                    WHERE
-                        spotify_artist_id = spotify_artist.id
-                )
-            FOR UPDATE SKIP LOCKED
-        )
-    RETURNING
-        1
 ), q9 AS (
     INSERT INTO
         undeleted_photo (uuid)
@@ -129,7 +104,6 @@ FROM (
     SELECT 1 AS n FROM q6 UNION ALL
     SELECT 1 AS n FROM q7 UNION ALL
     SELECT 1 AS n FROM q8 UNION ALL
-    SELECT 1 AS n FROM q11 UNION ALL
-    SELECT 1 AS n FROM q12
+    SELECT 1 AS n FROM q11
 ) AS t(n)
 """

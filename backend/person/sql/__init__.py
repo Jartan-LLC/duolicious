@@ -932,25 +932,13 @@ WITH prospect_base AS (
 ), spotify_artists_json AS (
     SELECT
         COALESCE(
-            json_agg(
-                json_build_object(
-                    'spotify_id', spotify_artist.id,
-                    'name', spotify_artist.name,
-                    'image_url_small', spotify_artist.image_url_small,
-                    'image_url_large', spotify_artist.image_url_large
-                )
-                ORDER BY position
+            (
+                SELECT top_artists
+                FROM person_spotify
+                WHERE person_id = (SELECT id FROM prospect)
             ),
-            '[]'::json
+            '[]'::jsonb
         ) AS j
-    FROM
-        person_spotify_artist
-    JOIN
-        spotify_artist
-    ON
-        spotify_artist.id = spotify_artist_id
-    WHERE
-        person_id = (SELECT id FROM prospect)
 ), flair AS (
     SELECT
         ({Q_COMPUTED_FLAIR}) AS computed_flair
@@ -1474,20 +1462,13 @@ WITH photo_ AS (
 ), spotify_artists AS (
     SELECT
         COALESCE(
-            json_agg(
-                json_build_object(
-                    'spotify_id', spotify_artist.id,
-                    'name', spotify_artist.name,
-                    'image_url_small', spotify_artist.image_url_small,
-                    'image_url_large', spotify_artist.image_url_large
-                )
-                ORDER BY position
+            (
+                SELECT top_artists
+                FROM person_spotify
+                WHERE person_id = %(person_id)s
             ),
-            '[]'::json
+            '[]'::jsonb
         ) AS j
-    FROM person_spotify_artist
-    JOIN spotify_artist ON spotify_artist.id = spotify_artist_id
-    WHERE person_id = %(person_id)s
 
 -- Distinct from a non-empty `spotify_artists` so the edit UI can tell
 -- connected-but-empty apart from not-connected.
@@ -2699,31 +2680,12 @@ SELECT json_build_object(
                 person_id,
                 access_token_expires_at,
                 refreshed_at,
-                artists_synced_at
+                artists_synced_at,
+                top_artists
             FROM
                 person_spotify
             WHERE
                 person_id = %(person_id)s
-        ) AS t
-    ),
-
-    'person_spotify_artist', (
-        SELECT
-            json_agg(row_to_json(t))
-        FROM (
-            SELECT
-                person_spotify_artist.*,
-                spotify_artist.name AS spotify_artist_name
-            FROM
-                person_spotify_artist
-            JOIN
-                spotify_artist
-            ON
-                spotify_artist.id = spotify_artist_id
-            WHERE
-                person_id = %(person_id)s
-            ORDER BY
-                position
         ) AS t
     ),
 

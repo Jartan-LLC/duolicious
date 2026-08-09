@@ -651,29 +651,13 @@ CREATE TABLE IF NOT EXISTS person_spotify (
     refreshed_at TIMESTAMP NOT NULL DEFAULT NOW(),
     -- Last time the artist list was successfully stored; NULL until the
     -- first successful fetch. Drives the cron's staleness check.
-    artists_synced_at TIMESTAMP
-);
-
--- Shared catalog like `club`; upserted on every fetch so names and artwork
--- stay fresh. `id` is Spotify's artist ID, which also serves as the
--- open.spotify.com/artist/{id} link required for attribution.
-CREATE TABLE IF NOT EXISTS spotify_artist (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    image_url_small TEXT,
-    image_url_large TEXT,
-    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-);
-
--- References person_spotify rather than person so artist rows can only exist
--- while a connection does: disconnecting (deleting the person_spotify row)
--- cascades here, and account deletion still cascades transitively.
-CREATE TABLE IF NOT EXISTS person_spotify_artist (
-    person_id INT NOT NULL REFERENCES person_spotify(person_id) ON DELETE CASCADE ON UPDATE CASCADE,
-    spotify_artist_id TEXT NOT NULL REFERENCES spotify_artist(id) ON DELETE CASCADE,
-    position SMALLINT NOT NULL,
-
-    PRIMARY KEY (person_id, spotify_artist_id)
+    artists_synced_at TIMESTAMP,
+    -- The person's top artists in rank order, in the shape the profile
+    -- endpoints serve: [{spotify_id, name, image_url_small,
+    -- image_url_large}]. `spotify_id` is Spotify's artist ID, which also
+    -- serves as the open.spotify.com/artist/{id} link required for
+    -- attribution.
+    top_artists JSONB NOT NULL DEFAULT '[]'
 );
 
 CREATE TABLE IF NOT EXISTS deleted_photo_admin_token (
@@ -895,8 +879,6 @@ CREATE INDEX IF NOT EXISTS idx__question__question ON question USING GIST(questi
 CREATE INDEX IF NOT EXISTS idx__club__name ON club USING GIST(name gist_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx__club__count_members__name ON club(count_members, name);
 
-CREATE INDEX IF NOT EXISTS idx__person_spotify_artist__spotify_artist_id
-ON person_spotify_artist(spotify_artist_id);
 CREATE INDEX IF NOT EXISTS idx__person_spotify__refreshed_at
 ON person_spotify(refreshed_at);
 

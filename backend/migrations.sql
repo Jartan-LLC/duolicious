@@ -22,31 +22,18 @@ CREATE TABLE IF NOT EXISTS person_spotify (
     access_token_expires_at TIMESTAMP NOT NULL,
     refresh_token TEXT NOT NULL,
     refreshed_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    artists_synced_at TIMESTAMP
+    artists_synced_at TIMESTAMP,
+    top_artists JSONB NOT NULL DEFAULT '[]'
 );
 
 -- For databases that booted an earlier revision of this branch, where
--- person_spotify existed without the column.
+-- person_spotify existed without these columns and the artists lived in the
+-- since-dropped spotify_artist / person_spotify_artist tables.
 ALTER TABLE person_spotify ADD COLUMN IF NOT EXISTS artists_synced_at TIMESTAMP;
-
-CREATE TABLE IF NOT EXISTS spotify_artist (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    image_url_small TEXT,
-    image_url_large TEXT,
-    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS person_spotify_artist (
-    person_id INT NOT NULL REFERENCES person_spotify(person_id) ON DELETE CASCADE ON UPDATE CASCADE,
-    spotify_artist_id TEXT NOT NULL REFERENCES spotify_artist(id) ON DELETE CASCADE,
-    position SMALLINT NOT NULL,
-
-    PRIMARY KEY (person_id, spotify_artist_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx__person_spotify_artist__spotify_artist_id
-    ON person_spotify_artist(spotify_artist_id);
+ALTER TABLE person_spotify
+    ADD COLUMN IF NOT EXISTS top_artists JSONB NOT NULL DEFAULT '[]';
+DROP TABLE IF EXISTS person_spotify_artist;
+DROP TABLE IF EXISTS spotify_artist;
 
 CREATE INDEX IF NOT EXISTS idx__person_spotify__refreshed_at
     ON person_spotify(refreshed_at);

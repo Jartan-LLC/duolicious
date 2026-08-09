@@ -33,7 +33,6 @@ setup () {
   reset_spotify_mock
 
   q "delete from person"
-  q "delete from spotify_artist"
 
   ../util/create-user.sh user1 0 0
   ../util/create-user.sh user2 0 0
@@ -98,7 +97,7 @@ connect_happy_path () {
      'http://localhost:3003/image/1-320.svg' ]]
 
   [[ "$(q "select count(*) from person_spotify")" == "1" ]]
-  [[ "$(q "select count(*) from person_spotify_artist")" == "10" ]]
+  [[ "$(q "select jsonb_array_length(top_artists) from person_spotify")" == "10" ]]
   [[ "$(q "select count(*) from spotify_oauth_state")" == "0" ]]
 }
 
@@ -217,7 +216,6 @@ disconnect_empties_everything () {
   [[ "$(jq -c '.spotify_artists' <<< "$profile")" == '[]' ]]
 
   [[ "$(q "select count(*) from person_spotify")" == "0" ]]
-  [[ "$(q "select count(*) from person_spotify_artist")" == "0" ]]
 }
 
 cron_refreshes_artists () {
@@ -280,7 +278,8 @@ failed_initial_fetch_backfills () {
   local elapsed=0
   while (( elapsed < 10 ))
   do
-    if [[ "$(q "select count(*) from person_spotify_artist")" == "10" ]]
+    if [[ "$(q "select jsonb_array_length(top_artists) from person_spotify")" == \
+          "10" ]]
     then
       break
     fi
@@ -307,7 +306,7 @@ api_401_alone_does_not_disconnect () {
   sleep 3
 
   [[ "$(q "select count(*) from person_spotify")" == "1" ]]
-  [[ "$(q "select count(*) from person_spotify_artist")" == "10" ]]
+  [[ "$(q "select jsonb_array_length(top_artists) from person_spotify")" == "10" ]]
 }
 
 revocation_with_unexpired_access_token () {
@@ -337,7 +336,6 @@ revocation_with_unexpired_access_token () {
   done
 
   [[ "$(q "select count(*) from person_spotify")" == "0" ]]
-  [[ "$(q "select count(*) from person_spotify_artist")" == "0" ]]
 }
 
 revocation_clears_tokens_and_artists () {
@@ -369,7 +367,6 @@ revocation_clears_tokens_and_artists () {
   done
 
   [[ "$(q "select count(*) from person_spotify")" == "0" ]]
-  [[ "$(q "select count(*) from person_spotify_artist")" == "0" ]]
 
   local profile=$(c GET /profile-info)
 
@@ -378,7 +375,7 @@ revocation_clears_tokens_and_artists () {
 }
 
 deleting_account_cascades () {
-  echo 'Deleting an account removes their Spotify rows and orphans the catalog'
+  echo 'Deleting an account removes their Spotify rows'
 
   setup
 
@@ -387,24 +384,6 @@ deleting_account_cascades () {
   c DELETE /account
 
   [[ "$(q "select count(*) from person_spotify")" == "0" ]]
-  [[ "$(q "select count(*) from person_spotify_artist")" == "0" ]]
-
-  # The catalog isn't cascade-deleted; the garbage-records cron prunes rows
-  # once nothing references them.
-  local elapsed=0
-  while (( elapsed < 10 ))
-  do
-    if [[ "$(q "select count(*) from spotify_artist")" == "0" ]]
-    then
-      break
-    fi
-
-    sleep 1
-
-    (( elapsed += 1 )) || true
-  done
-
-  [[ "$(q "select count(*) from spotify_artist")" == "0" ]]
 }
 
 connect_happy_path

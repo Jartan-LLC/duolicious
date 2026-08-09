@@ -7,16 +7,16 @@ connection. Both replace tokens and artists in the caller's one transaction,
 so they can never drift out of step with each other.
 """
 
+import dataclasses
+import json
+
 from database import Tx
 from spotify import SpotifyArtist, SpotifyTokens
 from spotify.sql import (
-    Q_DELETE_PERSON_SPOTIFY_ARTISTS,
-    Q_INSERT_PERSON_SPOTIFY_ARTISTS,
-    Q_MARK_SPOTIFY_ARTISTS_SYNCED,
+    Q_SET_SPOTIFY_ARTISTS,
     Q_TOUCH_PERSON_SPOTIFY,
     Q_UPDATE_PERSON_SPOTIFY,
     Q_UPSERT_PERSON_SPOTIFY,
-    Q_UPSERT_SPOTIFY_ARTISTS,
 )
 
 
@@ -76,34 +76,9 @@ async def _replace_artists(
     person_id: int,
     artists: list[SpotifyArtist],
 ) -> None:
-    # Upsert the shared catalog in canonical (sorted) order so concurrent
-    # transactions covering overlapping artists can't deadlock. The upsert
-    # also row-locks every artist this transaction is about to reference,
-    # which is what stops the garbage-records prune of unreferenced catalog
-    # rows from deleting them out from under the inserts below.
-    await tx.executemany(Q_UPSERT_SPOTIFY_ARTISTS, params_seq=[
-        dict(
-            spotify_artist_id=artist.spotify_id,
-            name=artist.name,
-            image_url_small=artist.image_url_small,
-            image_url_large=artist.image_url_large,
-        )
-        for artist in sorted(artists, key=lambda artist: artist.spotify_id)
-    ])
-
-    await tx.execute(Q_DELETE_PERSON_SPOTIFY_ARTISTS, dict(
+    await tx.execute(Q_SET_SPOTIFY_ARTISTS, dict(
         person_id=person_id,
-    ))
-
-    await tx.executemany(Q_INSERT_PERSON_SPOTIFY_ARTISTS, params_seq=[
-        dict(
-            person_id=person_id,
-            spotify_artist_id=artist.spotify_id,
-            position=position,
-        )
-        for position, artist in enumerate(artists)
-    ])
-
-    await tx.execute(Q_MARK_SPOTIFY_ARTISTS_SYNCED, dict(
-        person_id=person_id,
+        top_artists=json.dumps([
+            dataclasses.asdict(artist) for artist in artists
+        ]),
     ))

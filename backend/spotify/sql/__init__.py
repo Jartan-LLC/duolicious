@@ -88,63 +88,19 @@ RETURNING
     1
 """
 
-Q_UPSERT_SPOTIFY_ARTISTS = """
-INSERT INTO spotify_artist (
-    id,
-    name,
-    image_url_small,
-    image_url_large,
-    updated_at
-)
-VALUES (
-    %(spotify_artist_id)s,
-    %(name)s,
-    %(image_url_small)s,
-    %(image_url_large)s,
-    NOW()
-)
-ON CONFLICT (id) DO UPDATE SET
-    name = EXCLUDED.name,
-    image_url_small = EXCLUDED.image_url_small,
-    image_url_large = EXCLUDED.image_url_large,
-    updated_at = NOW()
-"""
-
-Q_MARK_SPOTIFY_ARTISTS_SYNCED = """
+Q_SET_SPOTIFY_ARTISTS = """
 UPDATE
     person_spotify
 SET
+    top_artists = %(top_artists)s::jsonb,
     artists_synced_at = NOW()
 WHERE
     person_id = %(person_id)s
 """
 
-Q_DELETE_PERSON_SPOTIFY_ARTISTS = """
-DELETE FROM
-    person_spotify_artist
-WHERE
-    person_id = %(person_id)s
-"""
-
-Q_INSERT_PERSON_SPOTIFY_ARTISTS = """
-INSERT INTO person_spotify_artist (
-    person_id,
-    spotify_artist_id,
-    position
-)
-VALUES (
-    %(person_id)s,
-    %(spotify_artist_id)s,
-    %(position)s
-)
-"""
-
 # Used both by /disconnect-spotify and by the refresh cron when Spotify
 # reports the authorization revoked: Spotify policy requires deleting the
 # user's content when authorization ends, so both paths behave identically.
-# The person's `person_spotify_artist` rows go via ON DELETE CASCADE; catalog
-# rows in `spotify_artist` are shared and stay until the garbage-records cron
-# prunes the unreferenced ones.
 Q_DISCONNECT_SPOTIFY = """
 DELETE FROM
     person_spotify
