@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { api, japi } from './api';
+import { parseQueryParams, takeWebReturnParams } from './oauth-return';
 import { DEEP_LINK_HOSTNAME } from '../env/env';
 import { notify } from '../events/events';
 import { ValidationErrorToast } from '../components/toast';
@@ -9,21 +10,6 @@ import {
   patchProfileInfo,
   setProfileInfo,
 } from '../events/profile-info';
-
-// Required so that the OAuth redirect dismisses the in-app browser
-// session on iOS / Android. Calling this once at module load is the
-// pattern documented by Expo.
-WebBrowser.maybeCompleteAuthSession();
-
-// The backend's callback returns to the SPA with the result in the query
-// string, but the navigation container rewrites the URL (stripping those
-// params) as soon as it mounts. Snapshot the query at module load - which
-// runs on the fresh page load before navigation mounts - so the return can
-// still be read once the Music section mounts.
-let _spotifyWebReturnSearch =
-  Platform.OS === 'web' && typeof window !== 'undefined'
-    ? window.location.search
-    : '';
 
 export type SpotifyConnectResult =
   | { ok: true }
@@ -102,7 +88,7 @@ const connectSpotify = async (): Promise<SpotifyConnectResult> => {
     return { ok: false, cancelled: false, reason: 'Spotify connect failed' };
   }
 
-  const params = _parseQueryParams(result.url);
+  const params = parseQueryParams(result.url);
   const error = params.get('spotify_error');
   if (error) {
     return { ok: false, cancelled: false, reason: `Spotify: ${error}` };
@@ -117,35 +103,16 @@ const connectSpotify = async (): Promise<SpotifyConnectResult> => {
 };
 
 /**
- * On web, completes the connect flow started by `connectSpotify()`.
- *
- * If the URL contains `spotify` / `spotify_error` params, strips them via
- * `history.replaceState` and returns the outcome for a toast. Returns null
- * when there's no pending return. `/profile-info` is fetched fresh on mount
- * anyway, so no refetch is needed here.
+ * On web, completes the connect flow started by `connectSpotify()` and
+ * returns the outcome for a toast. Returns null when there's no pending
+ * return. `/profile-info` is fetched fresh on mount anyway, so no refetch
+ * is needed here.
  */
 const _consumePendingSpotifyConnect = (): SpotifyConnectResult | null => {
-  if (Platform.OS !== 'web') return null;
-  if (typeof window === 'undefined') return null;
+  const params = takeWebReturnParams(['spotify', 'spotify_error']);
+  if (!params) return null;
 
-  const params = new URLSearchParams(_spotifyWebReturnSearch);
-  const connected = params.get('spotify');
   const error = params.get('spotify_error');
-  if (!connected && !error) return null;
-  _spotifyWebReturnSearch = '';
-
-  try {
-    const url = new URL(window.location.href);
-    url.searchParams.delete('spotify');
-    url.searchParams.delete('spotify_error');
-    const cleanSearch = url.searchParams.toString();
-    window.history.replaceState(
-      null,
-      '',
-      url.pathname + (cleanSearch ? `?${cleanSearch}` : '') + url.hash,
-    );
-  } catch {}
-
   if (error) {
     return { ok: false, cancelled: false, reason: `Spotify: ${error}` };
   }
@@ -172,17 +139,6 @@ const disconnectSpotify = async (): Promise<boolean> => {
     patchProfileInfo({ spotify_artists: [], spotify_connected: false });
   }
   return response.ok;
-};
-
-const _parseQueryParams = (url: string): URLSearchParams => {
-  // Some browsers/env may not populate URL.searchParams from a relative-ish
-  // string; parse the query manually as a fallback.
-  try {
-    return new URL(url).searchParams;
-  } catch {
-    const q = url.split('?')[1] ?? '';
-    return new URLSearchParams(q.split('#')[0]);
-  }
 };
 
 export {
