@@ -87,22 +87,6 @@ The frontend's default API URLs already point at the backend's published
 localhost ports, so the web app talks to your local backend with no extra
 configuration.
 
-The ports are published on `127.0.0.1` only, so other machines on your network
-can't reach the stack. To reach it from other machines, start it with
-`DUO_BIND_ADDRESS=0.0.0.0 docker compose up`. This also exposes, to everyone on
-that network, Postgres with its default password, Redis with no password, and
-MailHog, which shows every email the stack sends.
-
-Other machines can then load the web app, but it still sends its API, chat,
-media and status requests to `localhost`, which for them is their own machine.
-The `DUO_*` settings in
-[`frontend/DEVELOPER.md`](frontend/DEVELOPER.md#environment-configuration)
-change those URLs, but the Compose stack doesn't pass them to the frontend
-container.
-
-If `localhost` doesn't connect, use `127.0.0.1`: the ports are IPv4-only, and
-some clients try IPv6 `::1` first without falling back.
-
 The local `docker compose up` stack runs without any secrets — it mocks the
 OpenAI-backed features (account verification and club SEO descriptions), so you
 don't need a key for development.

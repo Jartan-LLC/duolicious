@@ -1,5 +1,6 @@
-# DUO_BIND_ADDRESS sets the host address every port is published on. See
-# "Run the whole app in one command" in the root README before overriding it.
+# Ports are published on 127.0.0.1. DUO_BIND_ADDRESS=0.0.0.0 publishes them on
+# every interface, which exposes Postgres (default password), Redis (no
+# password) and MailHog (every email sent) to your network.
 services:
   status:
     build:

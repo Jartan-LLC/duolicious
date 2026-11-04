@@ -4,8 +4,8 @@
 # own (run from frontend/) and when pulled into the root stack
 # via `include`.
 #
-# DUO_BIND_ADDRESS sets the host address every port is published on. See
-# "Run the whole app in one command" in the root README before overriding it.
+# The port is published on 127.0.0.1; DUO_BIND_ADDRESS=0.0.0.0 publishes it on
+# every interface.
 services:
   frontend:
     build:

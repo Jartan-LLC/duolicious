@@ -4,8 +4,6 @@
 
 You can run everything with Docker, or run the Python services locally with hot reload against Dockerized infrastructure.
 
-Either way, the Compose files publish ports on `127.0.0.1` only. The [root README](../README.md#run-the-whole-app-in-one-command) covers reaching the stack from other machines, and what to do if `localhost` doesn't connect.
-
 ### Option A: Everything in Docker (easiest)
 
 ```bash
